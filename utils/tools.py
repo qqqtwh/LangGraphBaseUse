@@ -13,7 +13,9 @@ def human_assistance(query: str) -> str:
 
 @tool
 def custom_human_assistance(
-    name: str, birthday: str, tool_call_id: Annotated[str, InjectedToolCallId]
+    name: str, 
+    birthday: str, 
+    tool_call_id: Annotated[str, InjectedToolCallId]
 ) -> str:
     """Request assistance from a human."""
     human_response = interrupt(

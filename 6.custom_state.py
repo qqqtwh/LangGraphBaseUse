@@ -1,9 +1,9 @@
-# 在agent中加入人为干预
+# 在agent中加入人为干预, 精细化更新state字段
 
 from utils.llm import llm
 from utils.utils import save_graph_png
 from utils.tools import get_time,get_weather,custom_human_assistance
-from langchain_core.messages import ToolMessage
+from langchain_core.messages import ToolMessage,AIMessage,HumanMessage
 from langgraph.prebuilt import ToolNode,tools_condition
 from langgraph.graph import StateGraph, START
 from langgraph.checkpoint.memory import InMemorySaver
@@ -42,25 +42,44 @@ save_graph_png(graph,'imgs/6.png')
 # 5.运行graph
 config = {"configurable": {"thread_id": "1"}}
 
-events = graph.stream(
-    {"messages": [{"role": "user", "content": "讲一下LangGraph发行日期，答案需要 human_assistance 工具审查"}]},
-    config,
-    stream_mode="values",
-)
-for event in events:
-    if "messages" in event:
-        # event["messages"][-1].pretty_print()
-        print(event["messages"][-1].content)
 
+while True:
+    try:
+        
+        user_input = input('User: ')
+        if user_input.lower() in ['quit', 'exit', 'q']:
+                print('对话结束')
+                break
 
-human_command = Command(
-    resume={
-        "name": "LangGraph",
-        "birthday": "Jan 17, 2024",
-    },
-)
-events = graph.stream(human_command, config, stream_mode="values")
-for event in events:
-    if "messages" in event:
-        # event["messages"][-1].pretty_print()
-        print(event["messages"][-1].content)
+        events = graph.stream(
+            {"messages": [{"role": "user", "content": user_input}]},
+            config,
+            stream_mode="values",
+        )
+        for event in events:
+            
+            if "messages" in event:
+                msg = event["messages"][-1]
+                if isinstance(msg,AIMessage):
+                    if msg.content: # 回答
+                        print(f'Assistant: {msg.content}')
+                    else: # 调用工具
+                        if msg.tool_calls[-1]['name'] == 'custom_human_assistance':
+                            human_command = Command(
+                                resume={
+                                    "name": "LangGraph",
+                                    "birthday": "Jan 17, 2024",
+                                },
+                            )
+
+                            for event in graph.stream(human_command, config, stream_mode="values"):
+                                if "messages" in event:
+                                    msg = event["messages"][-1]
+                                    if isinstance(msg,AIMessage) and msg.content:
+                                        print(f'Assistant: {msg.content}')
+            
+
+  
+    except Exception as e:
+        print(f'发生错误: {e}')
+        break
