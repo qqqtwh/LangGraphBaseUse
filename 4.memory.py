@@ -1,11 +1,15 @@
+# 将对话 State-messages 保存在内存中
+
 from typing import Annotated
 from typing_extensions import TypedDict
 from utils.llm import llm
 from utils.tools import get_time,get_weather
 from langchain_core.messages import ToolMessage
+
 from langgraph.prebuilt import ToolNode,tools_condition
-from langgraph.graph import StateGraph, START, END
+from langgraph.graph import StateGraph, START
 from langgraph.graph.message import add_messages
+from langgraph.checkpoint.memory import InMemorySaver
 
 llm_with_tools = llm.bind_tools([get_time, get_weather])
 
@@ -16,9 +20,10 @@ def save_graph_png(graph, save_path="langgraph_workflow.png"):
         f.write(png_data)
 
 # 对话主函数
+config = {"configurable": {"thread_id": "1"}}
 def stram_graph_update(user_input: str):
     messages = [{"role": "user", "content": user_input}]
-    for event in graph.stream({"messages": messages}):
+    for event in graph.stream({"messages": messages},config=config):
         for value in event.values():
             msg = value["messages"][-1]
             if msg.content and not isinstance(msg, ToolMessage):
@@ -39,7 +44,6 @@ class Chatbot: # 对话节点
 chatbot = Chatbot()
 graph_builder.add_node("chatbot",chatbot)
 
-
 tool_node = ToolNode(tools=[get_time,get_weather])
 graph_builder.add_node('tools',tool_node)
 
@@ -52,7 +56,8 @@ graph_builder.add_conditional_edges(
 )
 
 # 4.图编译
-graph = graph_builder.compile()
+memory = InMemorySaver()    # 内存中的检查点，实际生产中使用 SqliteSaver 或 PostgresSaver 保存在数据库中
+graph = graph_builder.compile(checkpointer=memory)
 # 可视化图
 save_graph_png(graph)
 # 5.运行graph
@@ -63,6 +68,10 @@ while True:
             print('对话结束')
             break
         stram_graph_update(user_input)
+        
+        # 查看每次对话后的消息状态
+        snapshot = graph.get_state(config)
+        print(snapshot)
 
     except Exception as e:
         print(f'发生错误: {e}')
