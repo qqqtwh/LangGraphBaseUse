@@ -1,0 +1,66 @@
+# 在agent中加入人为干预
+
+from utils.llm import llm
+from utils.utils import save_graph_png
+from utils.tools import get_time,get_weather,custom_human_assistance
+from langchain_core.messages import ToolMessage
+from langgraph.prebuilt import ToolNode,tools_condition
+from langgraph.graph import StateGraph, START
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.types import Command
+
+current_tools = [get_time, get_weather,custom_human_assistance]
+llm_with_tools = llm.bind_tools(current_tools)
+
+# 1.图构建初始化
+from utils.nodes import State
+graph_builder = StateGraph(State)
+
+# 2.定义并添加节点
+from utils.nodes import ChatbotWithHuman
+llm_with_tools = llm.bind_tools(current_tools)
+chatbot = ChatbotWithHuman(llm_with_tools)
+graph_builder.add_node("chatbot",chatbot)
+
+tool_node = ToolNode(tools=current_tools)
+graph_builder.add_node('tools',tool_node)
+
+# 3.构建图流程
+graph_builder.add_edge(START, "chatbot")
+graph_builder.add_edge("tools","chatbot")   # 执行完 tools 节点后继续执行  chatbot 节点，相当于润色输出
+graph_builder.add_conditional_edges(
+    source = "chatbot",
+    path = tools_condition,
+)
+
+# 4.图编译
+memory = InMemorySaver()    # 内存中的检查点，实际生产中使用 SqliteSaver 或 PostgresSaver 保存在数据库中
+graph = graph_builder.compile(checkpointer=memory)
+# 可视化图
+save_graph_png(graph,'imgs/6.png')
+
+# 5.运行graph
+config = {"configurable": {"thread_id": "1"}}
+
+events = graph.stream(
+    {"messages": [{"role": "user", "content": "讲一下LangGraph发行日期，答案需要 human_assistance 工具审查"}]},
+    config,
+    stream_mode="values",
+)
+for event in events:
+    if "messages" in event:
+        # event["messages"][-1].pretty_print()
+        print(event["messages"][-1].content)
+
+
+human_command = Command(
+    resume={
+        "name": "LangGraph",
+        "birthday": "Jan 17, 2024",
+    },
+)
+events = graph.stream(human_command, config, stream_mode="values")
+for event in events:
+    if "messages" in event:
+        # event["messages"][-1].pretty_print()
+        print(event["messages"][-1].content)
