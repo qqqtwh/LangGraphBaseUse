@@ -1,5 +1,40 @@
-# 将对话 State-messages 保存在内存中
-from utils.utils import save_graph_png
+# 将对话 State 通过Config 以快照的形式保存在内存中
+''' 
+通过 config = {"configurable": {"thread_id": "1"}} 来设置状态state在内存中的唯一性
+
+# 1.获取 snapshot
+通过 snapshot = graph.get_state(config) 或 snapshots =  graph.get_state_history(config) 获得当前完整快照状态
+
+StateSnapshot(
+    # 在此时间点的状态通道的值。
+    values={'foo': 'b', 'bar': ['a', 'b']},
+    
+    # 一个元组，包含图中接下来要执行的节点名称
+    next=(),
+
+    # 与此检查点关联的配置
+    config={'configurable': {'thread_id': '1', 'checkpoint_ns': '', 'checkpoint_id': '1ef663ba-28fe-6528-8002-5a559208592c'}},
+
+    # 与此检查点关联的元数据
+    metadata={'source': 'loop', 'writes': {'node_b': {'foo': 'b', 'bar': ['b']}}, 'step': 2},
+
+    created_at='2024-08-29T19:19:38.821749+00:00',
+    
+    # 一个PregelTask对象的元组，包含有关接下来要执行的任务的信息。如果该步骤之前尝试过，它将包含错误信息。如果图在节点内部被动态中断，任务将包含与中断相关的额外数据。
+    parent_config={'configurable': {'thread_id': '1', 'checkpoint_ns': '', 'checkpoint_id': '1ef663ba-28f9-6ec4-8001-31981c2c39f8'}}, tasks=()
+)
+
+# 2.replay
+    config = {"configurable": {"thread_id": "1", "checkpoint_id": "0c62ca34-ac19-445d-bbb0-5b4984975b2a"}}
+    graph.invoke(None, config=config)
+
+# 3.更行图状态
+    graph.update_state(config, {"foo": 2, "bar": ["b"]})
+
+'''
+
+
+from utils.utils import save_graph_png,smart_print_msg
 from utils.llm import llm
 from utils.tools import get_time,get_weather
 from langchain_core.messages import ToolMessage
@@ -50,8 +85,7 @@ while True:
         for event in graph.stream({"messages": messages},config=config):
             for value in event.values():
                 msg = value["messages"][-1]
-                if msg.content and not isinstance(msg, ToolMessage):
-                    print("Assistant:", msg.content)
+                smart_print_msg(msg)
         
         # 查看每次对话后的消息状态
         snapshot = graph.get_state(config)

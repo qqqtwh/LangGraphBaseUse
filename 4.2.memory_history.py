@@ -1,11 +1,10 @@
-''' 对话历史回溯
-    state_list = graph.get_state_history(config)    获得所有迭代的 state 信息
-    state = graph.get_state(config)                 获得当前的 state 信息
-
-    可从 state_list 中获取特定 state 传入 graph.stream({"messages": messages},config=config) 使用
+''' 对话历史回溯 replay
+            调用方式	                状态来源	执行起点	   是否续跑	        checkpoint_id 是否生效
+    invoke(None, config)	✅ 来自 checkpoint	   中断处	    ✅ 是	        ✅ 完全生效
+    invoke(state, config)	❌ 来自你传入的 state	入口点	     ❌ 否（重跑）	⚠️ 仅用于标识，状态被覆盖
 
 '''
-from utils.utils import save_graph_png
+from utils.utils import save_graph_png,smart_print_msg
 from utils.llm import llm
 from utils.tools import get_time,get_weather
 from langchain_core.messages import ToolMessage
@@ -49,31 +48,26 @@ config = {"configurable": {"thread_id": "1"}} # 固定字段
 while True:
     try:
         user_input = input('User: ')
+        input_messages = {"messages":[
+            {"role": "system", "content": "你是一个通用博学乐于助人的AI助手，可以积极回答用户问题"},
+            {"role": "user", "content": user_input}
+        ]}
+
         if user_input.lower() in ['quit', 'exit', 'q']:
             print('对话结束')
             break
-        elif user_input.lower() in ['history']:
-            
+        elif user_input.lower() in ['h']:
             for state in graph.get_state_history(config):
-                # print("-" * 80)
-                # print(f"Num Messages: {len(state.values['messages'])}, Next: {state.next}, Config: {state.config}")
                 if len(state.values["messages"]) == 6: # 自定义条件需要回溯的 state
                     config = state.config
+                    input_messages = None
                     break
-            continue
-        messages = [
-            {"role": "system", "content": "你是一个通用博学，乐于助人的AI助手，可以积极回答用户问题"},
-            {"role": "user", "content": user_input}
-            ]
-        for event in graph.stream({"messages": messages},config=config):
+
+        for event in graph.stream(input_messages,config=config):
             for value in event.values():
                 msg = value["messages"][-1]
-                if msg.content and not isinstance(msg, ToolMessage):
-                    print("Assistant:", msg.content)
-        print('=====')
-        for i in [i.content for i in graph.get_state(config).values['messages']]:
-            print(i)
-        print('---')
+                smart_print_msg(msg)
+        
     except Exception as e:
         print(f'发生错误: {e}')
         break

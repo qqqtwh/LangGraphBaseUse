@@ -1,16 +1,27 @@
-# 在agent中加入人为干预
+
+''' 在agent中加入人为干预
+
+def some_node_inside_alice(state):
+    return Command(
+        goto="bob",
+        update={"my_state_key": "my_state_value"}, # 子图、父图、全剧图均更新
+        graph=Command.PARENT,   # goto要去的节点不在当前图中，在父图中； Command.CURRENT（默认）/ Command.ROOT
+    )
+
+
+'''
 
 import os,sys
 os.chdir(sys.path[0])
 
 from utils.llm import llm
 from utils.utils import save_graph_png
-from utils.tools import get_time,get_weather,human_assistance
-
 from langchain_core.messages import ToolMessage,HumanMessage,AIMessage
 from langgraph.prebuilt import ToolNode,tools_condition
 from langgraph.graph import StateGraph, START
 from langgraph.checkpoint.memory import InMemorySaver
+
+from utils.tools import get_time,get_weather,human_assistance
 from langgraph.types import Command
 
 
@@ -75,6 +86,7 @@ while True:
                         if msg.tool_calls[-1]['name'] == 'human_assistance':
                             human_input = input('专家: ')
                             human_command = Command(resume={"data": human_input})
+                            # 使用 Command恢复执行
                             for event in graph.stream(human_command, config, stream_mode="values"):
                                 if "messages" in event:
                                     msg = event["messages"][-1]

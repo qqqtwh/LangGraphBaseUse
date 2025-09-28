@@ -13,10 +13,11 @@ vision_model=os.getenv('vision_model')
 multi_model=os.getenv('multi_model')
 embedding_model=os.getenv('embedding_model')
 
+# 禁用流式输出disable_streaming=True
 llm = ChatOpenAI(base_url=base_url,api_key=api_key,model=model_name)
 vlm = ChatOpenAI(base_url=base_url,api_key=api_key,model=vision_model)
 mlm = ChatOpenAI(base_url=base_url,api_key=api_key,model=multi_model,streaming=True)
-
+elm = ChatOpenAI(base_url=base_url,api_key=api_key,model=embedding_model)
 
 class ParrotLinkEmbeddings(Embeddings):
     def __init__(self,model:str=embedding_model):
@@ -35,4 +36,4 @@ class ParrotLinkEmbeddings(Embeddings):
     def embed_query(self, text: str) -> list[float]:        
         return self.embed_documents([text])[0]
 
-elm = ChatOpenAI(base_url=base_url,api_key=api_key,model=embedding_model)
+custom_elm = ParrotLinkEmbeddings()
